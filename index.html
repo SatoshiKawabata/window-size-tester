@@ -37,6 +37,7 @@
   </script>
   <title>Window Size Tester</title>
   <link rel="icon" href="data:,">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; margin: 12px; font-size: 14px; }
     h1 { font-size: 18px; margin: 0 0 8px; }
@@ -51,6 +52,8 @@
     #log { font-family: ui-monospace, monospace; font-size: 11px; white-space: pre; overflow-x: auto; background: #f6f6f6; padding: 6px; margin: 0; max-height: 40vh; overflow: auto; }
     #log div { border-bottom: 1px solid #ddd; padding: 2px 0; width: max-content; min-width: 100%; }
     button { font-size: 12px; margin-left: 8px; }
+    #qr { margin: 8px 0; }
+    #qr svg { width: 100%; max-width: 360px; height: auto; display: block; background: #fff; }
   </style>
 </head>
 <body>
@@ -64,6 +67,10 @@
   </fieldset>
 
   <div class="meta">最終更新: <span id="updated"></span> / イベント: <span id="event"></span></div>
+
+  <h2>QR コード <button type="button" id="show-qr">最新ログで生成</button> <button type="button" id="hide-qr">閉じる</button></h2>
+  <div class="meta">先頭行がキー名、以降が新しい順のイベント。収まる件数だけ入る。</div>
+  <div id="qr"></div>
 
   <h2>イベントログ（最新が上） <button type="button" id="clear-log">クリア</button></h2>
   <div id="log"></div>
@@ -133,6 +140,68 @@
     /** ログの最大保持件数 */
     var LOG_LIMIT = 300;
 
+    /** QR に入れる最大文字数（画面上で読み取れる密度に抑える） */
+    var QR_MAX_CHARS = 1000;
+
+    /** QR 用の簡潔なログ（新しい順） */
+    var compactLogs = [];
+
+    /** QR 用ログのキー名 */
+    var COMPACT_KEYS = 't ev iw ih ow oh dpr cw ch sw sh saw sah ori vvw vvh vvs';
+
+    /**
+     * 小数を2桁に丸める。
+     * @param {number} n
+     * @returns {number}
+     */
+    function r2(n) { return Math.round(n * 100) / 100; }
+
+    /**
+     * 現在値を QR 用の1行に整形する。
+     * @param {string} eventName
+     * @returns {string}
+     */
+    function compactLine(eventName) {
+      var de = document.documentElement;
+      var vv = window.visualViewport;
+      var so = screen.orientation;
+      return [
+        new Date().toLocaleTimeString('ja-JP', { hour12: false }), eventName.replace('visualViewport.', 'vv.'),
+        innerWidth, innerHeight, outerWidth, outerHeight, devicePixelRatio,
+        de.clientWidth, de.clientHeight, screen.width, screen.height, screen.availWidth, screen.availHeight,
+        so ? so.type.replace('-primary', '').replace('-secondary', '2') + so.angle : '-',
+        vv ? r2(vv.width) : '-', vv ? r2(vv.height) : '-', vv ? r2(vv.scale) : '-'
+      ].join(' ');
+    }
+
+    /**
+     * QR に入れるテキストを組み立てる（上限文字数まで新しい順に詰める）。
+     * @returns {string}
+     */
+    function buildQrText() {
+      var text = 'viewport=' + window.VIEWPORT_MODE + '\n' + navigator.userAgent + '\n' + COMPACT_KEYS;
+      for (var i = 0; i < compactLogs.length; i++) {
+        if (text.length + compactLogs[i].length + 1 > QR_MAX_CHARS) break;
+        text += '\n' + compactLogs[i];
+      }
+      return text;
+    }
+
+    /**
+     * QR コードを生成して表示する。
+     */
+    function showQr() {
+      var el = document.getElementById('qr');
+      if (typeof qrcode !== 'function') {
+        el.textContent = 'QR ライブラリを読み込めませんでした（通信を確認）';
+        return;
+      }
+      var qr = qrcode(0, 'L');
+      qr.addData(buildQrText());
+      qr.make();
+      el.innerHTML = qr.createSvgTag(4, 8);
+    }
+
     /**
      * 計測値を1行のログとして先頭に追記する。
      * @param {string} eventName
@@ -142,6 +211,8 @@
       var body = metrics.map(function (sec) {
         return sec.title + '{' + sec.rows.map(function (r) { return r[0] + '=' + String(r[1]); }).join(' ') + '}';
       }).join(' ');
+      compactLogs.unshift(compactLine(eventName));
+      if (compactLogs.length > LOG_LIMIT) compactLogs.pop();
       var line = document.createElement('div');
       line.textContent = new Date().toLocaleTimeString() + ' [' + eventName + '] ' + body;
       var log = document.getElementById('log');
@@ -168,6 +239,11 @@
     initViewportSwitch();
     document.getElementById('clear-log').addEventListener('click', function () {
       document.getElementById('log').innerHTML = '';
+      compactLogs = [];
+    });
+    document.getElementById('show-qr').addEventListener('click', showQr);
+    document.getElementById('hide-qr').addEventListener('click', function () {
+      document.getElementById('qr').innerHTML = '';
     });
     document.getElementById('ua').textContent = navigator.userAgent;
     render('init');
