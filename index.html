@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <script>
+    /**
+     * クエリパラメータ `viewport` から表示モードを取得する。
+     * @returns {'device'|'375'} 既定は 'device'
+     */
+    function getViewportMode() {
+      var v = new URLSearchParams(location.search).get('viewport');
+      return v === '375' ? '375' : 'device';
+    }
+
+    /**
+     * モードに対応する meta viewport の content を返す。
+     * @param {'device'|'375'} mode
+     * @returns {string}
+     */
+    function viewportContent(mode) {
+      return mode === '375' ? 'width=375' : 'width=device-width, initial-scale=1';
+    }
+
+    /**
+     * meta viewport をパース前に挿入する（静的 meta は置かない）。
+     * @param {'device'|'375'} mode
+     */
+    function applyViewportMeta(mode) {
+      var meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = viewportContent(mode);
+      document.head.appendChild(meta);
+    }
+
+    window.VIEWPORT_MODE = getViewportMode();
+    applyViewportMeta(window.VIEWPORT_MODE);
+  </script>
+  <title>Window Size Tester</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 12px; font-size: 14px; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    h2 { font-size: 15px; margin: 16px 0 4px; }
+    fieldset { margin: 0 0 8px; padding: 6px 10px; }
+    label { margin-right: 12px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th, td { border: 1px solid #ccc; padding: 3px 6px; text-align: left; word-break: break-all; }
+    th { width: 45%; font-weight: normal; color: #555; }
+    td { font-family: ui-monospace, monospace; }
+    .meta { color: #555; font-size: 12px; }
+    #log { font-family: ui-monospace, monospace; font-size: 11px; white-space: pre; overflow-x: auto; background: #f6f6f6; padding: 6px; margin: 0; max-height: 40vh; overflow: auto; }
+    #log div { border-bottom: 1px solid #ddd; padding: 2px 0; width: max-content; min-width: 100%; }
+    button { font-size: 12px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Window Size Tester</h1>
+
+  <fieldset>
+    <legend>meta viewport（変更するとリロードされ、URL に保持）</legend>
+    <label><input type="radio" name="viewport" value="device"> width=device-width</label>
+    <label><input type="radio" name="viewport" value="375"> width=375</label>
+    <div class="meta">適用中: <code id="viewport-content"></code></div>
+  </fieldset>
+
+  <div class="meta">最終更新: <span id="updated"></span> / イベント: <span id="event"></span></div>
+
+  <h2>イベントログ（最新が上） <button type="button" id="clear-log">クリア</button></h2>
+  <div id="log"></div>
+
+  <div id="tables"></div>
+
+  <h2>navigator.userAgent</h2>
+  <div class="meta" id="ua"></div>
+
+  <script>
+    /**
+     * 計測値を収集する。
+     * @returns {Array<{title: string, rows: Array<[string, *]>}>}
+     */
+    function collectMetrics() {
+      var de = document.documentElement;
+      var vv = window.visualViewport;
+      var so = screen.orientation;
+      /** @param {string} q */
+      var mm = function (q) { return matchMedia(q).matches; };
+      return [
+        { title: 'window', rows: [
+          ['innerWidth', innerWidth], ['innerHeight', innerHeight],
+          ['outerWidth', outerWidth], ['outerHeight', outerHeight],
+          ['devicePixelRatio', devicePixelRatio],
+          ['scrollX', scrollX], ['scrollY', scrollY]
+        ]},
+        { title: 'document.documentElement', rows: [
+          ['clientWidth', de.clientWidth], ['clientHeight', de.clientHeight]
+        ]},
+        { title: 'screen', rows: [
+          ['width', screen.width], ['height', screen.height],
+          ['availWidth', screen.availWidth], ['availHeight', screen.availHeight],
+          ['orientation.type', so ? so.type : 'n/a'],
+          ['orientation.angle', so ? so.angle : 'n/a']
+        ]},
+        { title: 'visualViewport', rows: vv ? [
+          ['width', vv.width], ['height', vv.height], ['scale', vv.scale],
+          ['offsetLeft', vv.offsetLeft], ['offsetTop', vv.offsetTop],
+          ['pageLeft', vv.pageLeft], ['pageTop', vv.pageTop]
+        ] : [['(unsupported)', '']]},
+        { title: 'matchMedia', rows: [
+          ['(orientation: portrait)', mm('(orientation: portrait)')],
+          ['(hover: hover)', mm('(hover: hover)')],
+          ['(pointer: coarse)', mm('(pointer: coarse)')]
+        ]}
+      ];
+    }
+
+    /**
+     * 計測値をテーブルとして描画する。
+     * @param {string} eventName 更新のきっかけとなったイベント名
+     */
+    function render(eventName) {
+      var metrics = collectMetrics();
+      appendLog(eventName, metrics);
+      var html = metrics.map(function (sec) {
+        return '<h2>' + sec.title + '</h2><table>' + sec.rows.map(function (r) {
+          return '<tr><th>' + r[0] + '</th><td>' + String(r[1]) + '</td></tr>';
+        }).join('') + '</table>';
+      }).join('');
+      document.getElementById('tables').innerHTML = html;
+      document.getElementById('updated').textContent = new Date().toLocaleTimeString();
+      document.getElementById('event').textContent = eventName;
+    }
+
+    /** ログの最大保持件数 */
+    var LOG_LIMIT = 300;
+
+    /**
+     * 計測値を1行のログとして先頭に追記する。
+     * @param {string} eventName
+     * @param {Array<{title: string, rows: Array<[string, *]>}>} metrics
+     */
+    function appendLog(eventName, metrics) {
+      var body = metrics.map(function (sec) {
+        return sec.title + '{' + sec.rows.map(function (r) { return r[0] + '=' + String(r[1]); }).join(' ') + '}';
+      }).join(' ');
+      var line = document.createElement('div');
+      line.textContent = new Date().toLocaleTimeString() + ' [' + eventName + '] ' + body;
+      var log = document.getElementById('log');
+      log.insertBefore(line, log.firstChild);
+      while (log.childElementCount > LOG_LIMIT) log.removeChild(log.lastChild);
+    }
+
+    /**
+     * viewport 切り替え UI を初期化する。
+     */
+    function initViewportSwitch() {
+      var mode = window.VIEWPORT_MODE;
+      document.getElementById('viewport-content').textContent = viewportContent(mode);
+      document.querySelectorAll('input[name="viewport"]').forEach(function (el) {
+        el.checked = el.value === mode;
+        el.addEventListener('change', function () {
+          var url = new URL(location.href);
+          url.searchParams.set('viewport', el.value);
+          location.href = url.toString();
+        });
+      });
+    }
+
+    initViewportSwitch();
+    document.getElementById('clear-log').addEventListener('click', function () {
+      document.getElementById('log').innerHTML = '';
+    });
+    document.getElementById('ua').textContent = navigator.userAgent;
+    render('init');
+    ['resize', 'orientationchange', 'load'].forEach(function (ev) {
+      addEventListener(ev, function () { render(ev); });
+    });
+    if (window.visualViewport) {
+      ['resize'].forEach(function (ev) {
+        visualViewport.addEventListener(ev, function () { render('visualViewport.' + ev); });
+      });
+    }
+  </script>
+</body>
+</html>
