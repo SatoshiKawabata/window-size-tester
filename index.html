@@ -52,8 +52,10 @@
     th { width: 45%; font-weight: normal; color: #555; }
     td { font-family: ui-monospace, monospace; }
     .meta { color: #555; font-size: 12px; }
-    #log { font-family: ui-monospace, monospace; font-size: 11px; white-space: pre; overflow-x: auto; background: #f6f6f6; padding: 6px; margin: 0; max-height: 40vh; overflow: auto; }
-    #log div { border-bottom: 1px solid #ddd; padding: 2px 0; width: max-content; min-width: 100%; }
+    #log { max-height: 40vh; overflow: auto; border: 1px solid #ccc; }
+    #log table { width: max-content; min-width: 100%; table-layout: auto; font-family: ui-monospace, monospace; font-size: 11px; }
+    #log th, #log td { width: auto; white-space: nowrap; word-break: normal; padding: 2px 6px; }
+    #log thead th { position: sticky; top: 0; background: #eee; color: #333; }
     button { font-size: 12px; margin-left: 8px; }
     #qr { margin: 8px 0; }
     #qr svg { width: 100%; max-width: 360px; height: auto; display: block; background: #fff; }
@@ -76,7 +78,7 @@
   <div id="qr"></div>
 
   <h2>イベントログ（最新が上） <button type="button" id="clear-log">クリア</button></h2>
-  <div id="log"></div>
+  <div id="log"><table><thead></thead><tbody></tbody></table></div>
 
   <div id="tables"></div>
 
@@ -207,22 +209,33 @@
       el.innerHTML = qr.createSvgTag(4, 8);
     }
 
+    /** ログ表の列名に付ける接頭辞（セクション名ごと） */
+    var LOG_PREFIX = { 'window': '', 'document.documentElement': 'de.', 'screen': 'screen.', 'visualViewport': 'vv.', 'matchMedia': '' };
+
     /**
-     * 計測値を1行のログとして先頭に追記する。
+     * 計測値をログ表の先頭行として追記する。
      * @param {string} eventName
      * @param {Array<{title: string, rows: Array<[string, *]>}>} metrics
      */
     function appendLog(eventName, metrics) {
-      var body = metrics.map(function (sec) {
-        return sec.title + '{' + sec.rows.map(function (r) { return r[0] + '=' + String(r[1]); }).join(' ') + '}';
-      }).join(' ');
       compactLogs.unshift(compactLine(eventName));
       if (compactLogs.length > LOG_LIMIT) compactLogs.pop();
-      var line = document.createElement('div');
-      line.textContent = new Date().toLocaleTimeString() + ' [' + eventName + '] ' + body;
-      var log = document.getElementById('log');
-      log.insertBefore(line, log.firstChild);
-      while (log.childElementCount > LOG_LIMIT) log.removeChild(log.lastChild);
+      var cols = [['time', new Date().toLocaleTimeString('ja-JP', { hour12: false })], ['event', eventName]];
+      metrics.forEach(function (sec) {
+        var prefix = LOG_PREFIX[sec.title] || '';
+        sec.rows.forEach(function (r) { cols.push([prefix + r[0], r[1]]); });
+      });
+      var thead = document.querySelector('#log thead');
+      if (!thead.firstChild) {
+        var htr = document.createElement('tr');
+        cols.forEach(function (c) { var th = document.createElement('th'); th.textContent = c[0]; htr.appendChild(th); });
+        thead.appendChild(htr);
+      }
+      var tr = document.createElement('tr');
+      cols.forEach(function (c) { var td = document.createElement('td'); td.textContent = String(c[1]); tr.appendChild(td); });
+      var tbody = document.querySelector('#log tbody');
+      tbody.insertBefore(tr, tbody.firstChild);
+      while (tbody.childElementCount > LOG_LIMIT) tbody.removeChild(tbody.lastChild);
     }
 
     /**
@@ -248,7 +261,7 @@
 
     initViewportSwitch();
     document.getElementById('clear-log').addEventListener('click', function () {
-      document.getElementById('log').innerHTML = '';
+      document.querySelector('#log tbody').innerHTML = '';
       compactLogs = [];
     });
     document.getElementById('show-qr').addEventListener('click', showQr);
