@@ -96,22 +96,20 @@
       var mm = function (q) { return matchMedia(q).matches; };
       return [
         { title: 'window', rows: [
-          ['innerWidth', innerWidth], ['innerHeight', innerHeight],
-          ['outerWidth', outerWidth], ['outerHeight', outerHeight],
+          ['innerWidth', innerWidth], ['outerWidth', outerWidth],
           ['devicePixelRatio', devicePixelRatio],
           ['scrollX', scrollX], ['scrollY', scrollY]
         ]},
         { title: 'document.documentElement', rows: [
-          ['clientWidth', de.clientWidth], ['clientHeight', de.clientHeight]
+          ['clientWidth', de.clientWidth]
         ]},
         { title: 'screen', rows: [
-          ['width', screen.width], ['height', screen.height],
-          ['availWidth', screen.availWidth], ['availHeight', screen.availHeight],
+          ['width', screen.width], ['availWidth', screen.availWidth],
           ['orientation.type', so ? so.type : 'n/a'],
           ['orientation.angle', so ? so.angle : 'n/a']
         ]},
         { title: 'visualViewport', rows: vv ? [
-          ['width', vv.width], ['height', vv.height], ['scale', vv.scale],
+          ['width', vv.width], ['scale', vv.scale],
           ['offsetLeft', vv.offsetLeft], ['offsetTop', vv.offsetTop],
           ['pageLeft', vv.pageLeft], ['pageTop', vv.pageTop]
         ] : [['(unsupported)', '']]},
@@ -154,7 +152,7 @@
     var compactLogs = [];
 
     /** QR 用ログのキー名 */
-    var COMPACT_KEYS = 't ev iw ih ow oh dpr cw ch sw sh saw sah ori vvw vvh vvs';
+    var COMPACT_KEYS = 't ev iw ow dpr cw sw saw ori vvw vvs';
 
     /**
      * 小数を2桁に丸める。
@@ -174,10 +172,10 @@
       var so = screen.orientation;
       return [
         new Date().toLocaleTimeString('ja-JP', { hour12: false }), eventName.replace('visualViewport.', 'vv.'),
-        innerWidth, innerHeight, outerWidth, outerHeight, devicePixelRatio,
-        de.clientWidth, de.clientHeight, screen.width, screen.height, screen.availWidth, screen.availHeight,
+        innerWidth, outerWidth, devicePixelRatio,
+        de.clientWidth, screen.width, screen.availWidth,
         so ? so.type.replace('-primary', '').replace('-secondary', '2') + so.angle : '-',
-        vv ? r2(vv.width) : '-', vv ? r2(vv.height) : '-', vv ? r2(vv.scale) : '-'
+        vv ? r2(vv.width) : '-', vv ? r2(vv.scale) : '-'
       ].join(' ');
     }
 
