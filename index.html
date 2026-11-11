@@ -22,14 +22,17 @@
     }
 
     /**
-     * meta viewport をパース前に挿入する（静的 meta は置かない）。
+     * meta viewport を設定する。無ければ作成し、あれば content を書き換える。
      * @param {'device'|'375'} mode
      */
     function applyViewportMeta(mode) {
-      var meta = document.createElement('meta');
-      meta.name = 'viewport';
+      var meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'viewport';
+        document.head.appendChild(meta);
+      }
       meta.content = viewportContent(mode);
-      document.head.appendChild(meta);
     }
 
     window.VIEWPORT_MODE = getViewportMode();
@@ -60,7 +63,7 @@
   <h1>Window Size Tester</h1>
 
   <fieldset>
-    <legend>meta viewport（変更するとリロードされ、URL に保持）</legend>
+    <legend>meta viewport（変更は即時反映し、URL に保持）</legend>
     <label><input type="radio" name="viewport" value="device"> width=device-width</label>
     <label><input type="radio" name="viewport" value="375"> width=375</label>
     <div class="meta">適用中: <code id="viewport-content"></code></div>
@@ -225,7 +228,7 @@
     }
 
     /**
-     * viewport 切り替え UI を初期化する。
+     * viewport 切り替え UI を初期化する（切り替え時はリロードしない）。
      */
     function initViewportSwitch() {
       var mode = window.VIEWPORT_MODE;
@@ -233,9 +236,14 @@
       document.querySelectorAll('input[name="viewport"]').forEach(function (el) {
         el.checked = el.value === mode;
         el.addEventListener('change', function () {
+          // リロードせず URL・meta・表示を更新する
           var url = new URL(location.href);
           url.searchParams.set('viewport', el.value);
-          location.href = url.toString();
+          history.replaceState(null, '', url.toString());
+          window.VIEWPORT_MODE = el.value;
+          applyViewportMeta(el.value);
+          document.getElementById('viewport-content').textContent = viewportContent(el.value);
+          render('viewport:' + el.value);
         });
       });
     }
