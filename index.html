@@ -64,6 +64,9 @@
 <body>
   <h1>Window Size Tester</h1>
 
+  <h2>イベントログ（最新が上） <button type="button" id="clear-log">クリア</button></h2>
+  <div id="log"><table><thead></thead><tbody></tbody></table></div>
+
   <fieldset>
     <legend>meta viewport（変更は即時反映し、URL に保持）</legend>
     <label><input type="radio" name="viewport" value="device"> width=device-width</label>
@@ -76,9 +79,6 @@
   <h2>QR コード <button type="button" id="show-qr">最新ログで生成</button> <button type="button" id="hide-qr">閉じる</button></h2>
   <div class="meta">先頭行がキー名、以降が新しい順のイベント。収まる件数だけ入る。</div>
   <div id="qr"></div>
-
-  <h2>イベントログ（最新が上） <button type="button" id="clear-log">クリア</button></h2>
-  <div id="log"><table><thead></thead><tbody></tbody></table></div>
 
   <div id="tables"></div>
 
@@ -212,6 +212,21 @@
     /** ログ表の列名に付ける接頭辞（セクション名ごと） */
     var LOG_PREFIX = { 'window': '', 'document.documentElement': 'de.', 'screen': 'screen.', 'visualViewport': 'vv.', 'matchMedia': '' };
 
+    /** outerWidth の右に移す列 */
+    var LOG_COLS_AFTER_OUTER = ['(min-width: 375px)', '(min-width: 750px)'];
+
+    /**
+     * ログ表の列順を調整する（min-width 列を outerWidth の右へ）。
+     * @param {Array<[string, *]>} cols
+     * @returns {Array<[string, *]>}
+     */
+    function reorderLogCols(cols) {
+      var moved = cols.filter(function (c) { return LOG_COLS_AFTER_OUTER.indexOf(c[0]) >= 0; });
+      var rest = cols.filter(function (c) { return LOG_COLS_AFTER_OUTER.indexOf(c[0]) < 0; });
+      var i = rest.findIndex(function (c) { return c[0] === 'outerWidth'; });
+      return rest.slice(0, i + 1).concat(moved, rest.slice(i + 1));
+    }
+
     /**
      * 計測値をログ表の先頭行として追記する。
      * @param {string} eventName
@@ -225,6 +240,7 @@
         var prefix = LOG_PREFIX[sec.title] || '';
         sec.rows.forEach(function (r) { cols.push([prefix + r[0], r[1]]); });
       });
+      cols = reorderLogCols(cols);
       var thead = document.querySelector('#log thead');
       if (!thead.firstChild) {
         var htr = document.createElement('tr');
@@ -273,11 +289,6 @@
     ['resize', 'orientationchange', 'load'].forEach(function (ev) {
       addEventListener(ev, function () { render(ev); });
     });
-    if (window.visualViewport) {
-      ['resize'].forEach(function (ev) {
-        visualViewport.addEventListener(ev, function () { render('visualViewport.' + ev); });
-      });
-    }
   </script>
 </body>
 </html>
